@@ -896,7 +896,6 @@ class Connection implements DriverConnection
     public function project($query, array $params, Callable $function)
     {
         $result = array();
-
         $stmt = $this->executeQuery($query, $params);
 
         while ($row = $stmt->fetch()) {
