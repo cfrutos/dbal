@@ -513,4 +513,73 @@ class ConnectionTest extends \Doctrine\Tests\DbalTestCase
 
         call_user_func_array(array($conn, $method), $params);
     }
+
+    /**
+    * Dumb method used to test if project accepts any callable type
+    */
+    public function projectAcceptsCallableClassMethod($row)
+    {
+        return array_flip($row);
+    }
+
+    public function dataProjectAcceptsAnyCallable()
+    {
+        return array(
+            array('closure' => function($row) {return array_flip($row);}),
+            array('globalFunction' => 'array_flip'),
+            array('classMethod' => array($this, 'projectAcceptsCallableClassMethod'))
+        );
+    }
+
+    /**
+    * @dataProvider dataProjectAcceptsAnyCallable
+    */
+    public function testProjectAcceptsAnyCallable(Callable $callback)
+    {
+        $statement = 'SELECT * FROM foo WHERE bar = ?';
+        $params = array(666);
+        $types = array(\PDO::PARAM_INT);
+        $result = array(
+            array('field' => 1),
+            array('field' => 2),
+            array('field' => 3),
+            array('field' => 4)
+        );
+
+        $driverMock = $this->getMock('Doctrine\DBAL\Driver');
+
+        $driverMock->expects($this->any())
+            ->method('connect')
+            ->will($this->returnValue(new DriverConnectionMock()));
+
+        $driverStatementMock = $this->getMock('Doctrine\Tests\Mocks\DriverStatementMock');
+
+        $driverStatementMock->expects($this->exactly(5))
+            ->method('fetch')
+            ->will($this->returnCallback(function() use ($result) {
+                static $count = -1;
+                return (++$count < 4) ? $result[$count] : array();
+            }));
+
+        /** @var \PHPUnit_Framework_MockObject_MockObject|\Doctrine\DBAL\Connection $conn */
+        $conn = $this->getMockBuilder('Doctrine\DBAL\Connection')
+            ->setMethods(array('executeQuery'))
+            ->setConstructorArgs(array(array('platform' => new Mocks\MockPlatform()), $driverMock))
+            ->getMock();
+
+        $conn->expects($this->once())
+            ->method('executeQuery')
+            ->with($statement, $params)
+            ->will($this->returnValue($driverStatementMock));
+
+        //All projections results in a flipped array
+        $flippedArray = array(
+            array(1 => 'field'),
+            array(2 => 'field'),
+            array(3 => 'field'),
+            array(4 => 'field')
+        );
+
+        $this->assertEquals($flippedArray, $conn->project($statement, $params, $callback));
+    }
 }

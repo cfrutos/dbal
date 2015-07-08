@@ -893,9 +893,10 @@ class Connection implements DriverConnection
      *
      * @return array The projected result of the query.
      */
-    public function project($query, array $params, Closure $function)
+    public function project($query, array $params, Callable $function)
     {
         $result = array();
+
         $stmt = $this->executeQuery($query, $params);
 
         while ($row = $stmt->fetch()) {
